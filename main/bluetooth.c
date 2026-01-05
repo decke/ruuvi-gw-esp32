@@ -42,60 +42,42 @@ static void ruuvi_gw_bluetooth_gap_cb(esp_gap_ble_cb_event_t event,
 
       switch (res->scan_rst.search_evt) {
         case ESP_GAP_SEARCH_INQ_RES_EVT: {
-          if (res->scan_rst.adv_data_len == 0 ||
+          if (res->scan_rst.adv_data_len < 8 ||
               res->scan_rst.ble_adv[5] != 0x99 ||
               res->scan_rst.ble_adv[6] != 0x04) {
-            /* Data length zero or manufacturer does not match */
+            /* Data length invalid or manufacturer does not match */
             break;
           }
 
-          /* Data format */
-          switch (res->scan_rst.ble_adv[7]) {
-            case 0x05: {
-              measurement_data_t measurement = {};
+          ESP_LOGI(TAG, "RuuviTag broadcast received (data format %02X, length %d)", res->scan_rst.ble_adv[7], res->scan_rst.adv_data_len);
 
-              sprintf(measurement.bda, "%02X:%02X:%02X:%02X:%02X:%02X",
-                  res->scan_rst.bda[0],
-                  res->scan_rst.bda[1],
-                  res->scan_rst.bda[2],
-                  res->scan_rst.bda[3],
-                  res->scan_rst.bda[4],
-                  res->scan_rst.bda[5]);
-              measurement.temperature = ((res->scan_rst.ble_adv[8] << 8) |
-                res->scan_rst.ble_adv[9]) * 0.005;
+          // Version 5
+          if(res->scan_rst.ble_adv[7] == 0x05 && res->scan_rst.adv_data_len != 31) {
+            ESP_LOGI(TAG, "RuuviTag broadcast has invalid length %d", res->scan_rst.adv_data_len);
+            break;
+          }
 
-              if(measurement.temperature > 163.836)
-                measurement.temperature -= 327.68;
+          // Version 6
+          if(res->scan_rst.ble_adv[7] == 0x06 && res->scan_rst.adv_data_len != 27) {
+            ESP_LOGI(TAG, "RuuviTag broadcast has invalid length %d", res->scan_rst.adv_data_len);
+            break;
+          }
 
-              measurement.humidity = ((res->scan_rst.ble_adv[10] << 8) |
-                res->scan_rst.ble_adv[11]) * 0.0025;
-              measurement.pressure = (((res->scan_rst.ble_adv[12] << 8) |
-                res->scan_rst.ble_adv[13]) + 50000);
-              measurement.acceleration_x = ((res->scan_rst.ble_adv[14] << 8) |
-                res->scan_rst.ble_adv[15]) / 1000.0;
-              measurement.acceleration_y = ((res->scan_rst.ble_adv[16] << 8) |
-                res->scan_rst.ble_adv[17]) / 1000.0;
-              measurement.acceleration_z = ((res->scan_rst.ble_adv[18] << 8) |
-                res->scan_rst.ble_adv[19]) / 1000.0;
+          measurement_data_t measurement = {};
 
-              if(measurement.acceleration_x > 32.767)
-                measurement.acceleration_x -= 65.536;
-              if(measurement.acceleration_y > 32.767)
-                measurement.acceleration_y -= 65.536;
-              if(measurement.acceleration_z > 32.767)
-                measurement.acceleration_z -= 65.536;
+          if (measurement_parse(&res->scan_rst.ble_adv[0], &measurement) == 0) {
+            // use bluetooth MAC address as sender
+            sprintf(measurement.bda, "%02X:%02X:%02X:%02X:%02X:%02X",
+              (uint8_t)res->scan_rst.bda[0],
+              (uint8_t)res->scan_rst.bda[1],
+              (uint8_t)res->scan_rst.bda[2],
+              (uint8_t)res->scan_rst.bda[3],
+              (uint8_t)res->scan_rst.bda[4],
+              (uint8_t)res->scan_rst.bda[5]);
 
-              measurement.battery = (((res->scan_rst.ble_adv[20] << 3) |
-                (res->scan_rst.ble_adv[21] >> 5))  + 1600) / 1000.0;
-              measurement.txpower = ((res->scan_rst.ble_adv[21] & 0x1f) * 2) - 40;
-              measurement.moves = res->scan_rst.ble_adv[22];
-              measurement.sequence = ((res->scan_rst.ble_adv[23] << 8) |
-                res->scan_rst.ble_adv[24]);
-
-              ruuvi_gw_mqtt_add_measurement(measurement);
-
-              break;
-            }
+            ruuvi_gw_mqtt_add_measurement(measurement);
+          } else {
+            ESP_LOGI(TAG, "Ruuvi measurement parsing failed");
           }
 
           break;

@@ -52,18 +52,32 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
         }
 
         ESP_LOGI(TAG, "");
+        ESP_LOGI(TAG, "Version:        %d", measurement->version);
         ESP_LOGI(TAG, "Device Address: %s", measurement->bda);
         ESP_LOGI(TAG, "Device Name:    %s", measurement->name);
+
         ESP_LOGI(TAG, "Temperature:    %.2f C", measurement->temperature);
         ESP_LOGI(TAG, "Humidity:       %.2f %%", measurement->humidity);
-        ESP_LOGI(TAG, "Pressure:       %d hPa", measurement->pressure/100);
-        ESP_LOGI(TAG, "Acceleration X: %.3f G", measurement->acceleration_x);
-        ESP_LOGI(TAG, "Acceleration Y: %.3f G", measurement->acceleration_y);
-        ESP_LOGI(TAG, "Acceleration Z: %.3f G", measurement->acceleration_z);
-        ESP_LOGI(TAG, "Battery:        %.3f V", measurement->battery);
-        ESP_LOGI(TAG, "TX Power:       %d dBm", measurement->txpower);
-        ESP_LOGI(TAG, "Moves:          %d", measurement->moves);
-        ESP_LOGI(TAG, "Sequence:       %d", measurement->sequence);
+        ESP_LOGI(TAG, "Pressure:       %lu hPa", measurement->pressure/100);
+
+        if (measurement->version == 5) {
+          ESP_LOGI(TAG, "Acceleration X: %.3f G", measurement->acceleration_x);
+          ESP_LOGI(TAG, "Acceleration Y: %.3f G", measurement->acceleration_y);
+          ESP_LOGI(TAG, "Acceleration Z: %.3f G", measurement->acceleration_z);
+          ESP_LOGI(TAG, "Battery:        %.3f V", measurement->battery);
+          ESP_LOGI(TAG, "TX Power:       %d dBm", measurement->txpower);
+          ESP_LOGI(TAG, "Moves:          %u", measurement->moves);
+        }
+
+        ESP_LOGI(TAG, "Sequence:       %u", measurement->sequence);
+
+        if (measurement->version == 6) {
+          ESP_LOGI(TAG, "PM2.5:          %.1d ug/m^3", (measurement->pm25/10.0));
+          ESP_LOGI(TAG, "CO2:            %u ppm", measurement->co2);
+          ESP_LOGI(TAG, "VOC:            %u", measurement->voc);
+          ESP_LOGI(TAG, "NOX:            %u", measurement->nox);
+          ESP_LOGI(TAG, "Luminosity:     %.2f lux", measurement->luminosity);
+        }
     
         char topic[100];
         char data[20];
@@ -88,51 +102,85 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
 
         sprintf(topic, "%s/%s/pressure", CONFIG_RUUVI_GW_MQTT_TOPIC,
             measurement->name);
-        sprintf(data, "%d", measurement->pressure/100);
+        sprintf(data, "%lu", measurement->pressure/100);
         esp_mqtt_client_publish(client, topic, data, 0, CONFIG_RUUVI_GW_MQTT_QOS,
             CONFIG_RUUVI_GW_MQTT_RETAIN);
 
-        sprintf(topic, "%s/%s/acceleration_x", CONFIG_RUUVI_GW_MQTT_TOPIC,
-            measurement->name);
-        sprintf(data, "%.3f", measurement->acceleration_x);
-        esp_mqtt_client_publish(client, topic, data, 0, CONFIG_RUUVI_GW_MQTT_QOS,
-            CONFIG_RUUVI_GW_MQTT_RETAIN);
+        if (measurement->version == 5) {
+            sprintf(topic, "%s/%s/acceleration_x", CONFIG_RUUVI_GW_MQTT_TOPIC,
+                measurement->name);
+            sprintf(data, "%.3f", measurement->acceleration_x);
+            esp_mqtt_client_publish(client, topic, data, 0, CONFIG_RUUVI_GW_MQTT_QOS,
+                CONFIG_RUUVI_GW_MQTT_RETAIN);
 
-        sprintf(topic, "%s/%s/acceleration_y", CONFIG_RUUVI_GW_MQTT_TOPIC,
-            measurement->name);
-        sprintf(data, "%.3f", measurement->acceleration_y);
-        esp_mqtt_client_publish(client, topic, data, 0, CONFIG_RUUVI_GW_MQTT_QOS,
-            CONFIG_RUUVI_GW_MQTT_RETAIN);
+            sprintf(topic, "%s/%s/acceleration_y", CONFIG_RUUVI_GW_MQTT_TOPIC,
+                measurement->name);
+            sprintf(data, "%.3f", measurement->acceleration_y);
+            esp_mqtt_client_publish(client, topic, data, 0, CONFIG_RUUVI_GW_MQTT_QOS,
+                CONFIG_RUUVI_GW_MQTT_RETAIN);
 
-        sprintf(topic, "%s/%s/acceleration_z", CONFIG_RUUVI_GW_MQTT_TOPIC,
-            measurement->name);
-        sprintf(data, "%.3f", measurement->acceleration_z);
-        esp_mqtt_client_publish(client, topic, data, 0, CONFIG_RUUVI_GW_MQTT_QOS,
-            CONFIG_RUUVI_GW_MQTT_RETAIN);
+            sprintf(topic, "%s/%s/acceleration_z", CONFIG_RUUVI_GW_MQTT_TOPIC,
+                measurement->name);
+            sprintf(data, "%.3f", measurement->acceleration_z);
+            esp_mqtt_client_publish(client, topic, data, 0, CONFIG_RUUVI_GW_MQTT_QOS,
+                CONFIG_RUUVI_GW_MQTT_RETAIN);
 
-        sprintf(topic, "%s/%s/battery", CONFIG_RUUVI_GW_MQTT_TOPIC,
-            measurement->name);
-        sprintf(data, "%.3f", measurement->battery);
-        esp_mqtt_client_publish(client, topic, data, 0, CONFIG_RUUVI_GW_MQTT_QOS,
-            CONFIG_RUUVI_GW_MQTT_RETAIN);
+            sprintf(topic, "%s/%s/battery", CONFIG_RUUVI_GW_MQTT_TOPIC,
+                measurement->name);
+            sprintf(data, "%.3f", measurement->battery);
+            esp_mqtt_client_publish(client, topic, data, 0, CONFIG_RUUVI_GW_MQTT_QOS,
+                CONFIG_RUUVI_GW_MQTT_RETAIN);
 
-        sprintf(topic, "%s/%s/txpower", CONFIG_RUUVI_GW_MQTT_TOPIC,
-            measurement->name);
-        sprintf(data, "%.d", measurement->txpower);
-        esp_mqtt_client_publish(client, topic, data, 0, CONFIG_RUUVI_GW_MQTT_QOS,
-            CONFIG_RUUVI_GW_MQTT_RETAIN);
+            sprintf(topic, "%s/%s/txpower", CONFIG_RUUVI_GW_MQTT_TOPIC,
+                measurement->name);
+            sprintf(data, "%.d", measurement->txpower);
+            esp_mqtt_client_publish(client, topic, data, 0, CONFIG_RUUVI_GW_MQTT_QOS,
+                CONFIG_RUUVI_GW_MQTT_RETAIN);
 
-        sprintf(topic, "%s/%s/moves", CONFIG_RUUVI_GW_MQTT_TOPIC,
-            measurement->name);
-        sprintf(data, "%d", measurement->moves);
-        esp_mqtt_client_publish(client, topic, data, 0, CONFIG_RUUVI_GW_MQTT_QOS,
-            CONFIG_RUUVI_GW_MQTT_RETAIN);
+            sprintf(topic, "%s/%s/moves", CONFIG_RUUVI_GW_MQTT_TOPIC,
+                measurement->name);
+            sprintf(data, "%u", measurement->moves);
+            esp_mqtt_client_publish(client, topic, data, 0, CONFIG_RUUVI_GW_MQTT_QOS,
+                CONFIG_RUUVI_GW_MQTT_RETAIN);
+        }
 
         sprintf(topic, "%s/%s/sequence", CONFIG_RUUVI_GW_MQTT_TOPIC,
             measurement->name);
-        sprintf(data, "%d", measurement->sequence);
+        sprintf(data, "%u", measurement->sequence);
         esp_mqtt_client_publish(client, topic, data, 0, CONFIG_RUUVI_GW_MQTT_QOS,
             CONFIG_RUUVI_GW_MQTT_RETAIN);
+
+        if (measurement->version == 6) {
+            sprintf(topic, "%s/%s/pm25", CONFIG_RUUVI_GW_MQTT_TOPIC,
+                measurement->name);
+            sprintf(data, "%.1d", measurement->pm25);
+            esp_mqtt_client_publish(client, topic, data, 0, CONFIG_RUUVI_GW_MQTT_QOS,
+                CONFIG_RUUVI_GW_MQTT_RETAIN);
+
+            sprintf(topic, "%s/%s/co2", CONFIG_RUUVI_GW_MQTT_TOPIC,
+                measurement->name);
+            sprintf(data, "%u", measurement->co2);
+            esp_mqtt_client_publish(client, topic, data, 0, CONFIG_RUUVI_GW_MQTT_QOS,
+                CONFIG_RUUVI_GW_MQTT_RETAIN);
+
+            sprintf(topic, "%s/%s/voc", CONFIG_RUUVI_GW_MQTT_TOPIC,
+                measurement->name);
+            sprintf(data, "%u", measurement->voc);
+            esp_mqtt_client_publish(client, topic, data, 0, CONFIG_RUUVI_GW_MQTT_QOS,
+                CONFIG_RUUVI_GW_MQTT_RETAIN);
+
+            sprintf(topic, "%s/%s/nox", CONFIG_RUUVI_GW_MQTT_TOPIC,
+                measurement->name);
+            sprintf(data, "%u", measurement->nox);
+            esp_mqtt_client_publish(client, topic, data, 0, CONFIG_RUUVI_GW_MQTT_QOS,
+                CONFIG_RUUVI_GW_MQTT_RETAIN);
+
+            sprintf(topic, "%s/%s/luminosity", CONFIG_RUUVI_GW_MQTT_TOPIC,
+                measurement->name);
+            sprintf(data, "%.2f", measurement->luminosity);
+            esp_mqtt_client_publish(client, topic, data, 0, CONFIG_RUUVI_GW_MQTT_QOS,
+                CONFIG_RUUVI_GW_MQTT_RETAIN);
+        }
       }
       
       break;
